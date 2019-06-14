@@ -1,18 +1,18 @@
 # Site settings
-title: Jekyll-Uno
-description: 'Jekyll-Uno - a minimal, responsive theme for Jekyll'
-url: 'https://whwhspace.tech'
+title: whwhspace's research
+description: '写写软件的东西'
+url: 'https://whwhspace.github.io'
 baseurl: ''
 # google_analytics: 'UA-XXXXXX-X'
 # disqus_shortname: 'your-disqus-name'
 
 author:
-  name: 'Josh Gerdes'
-  email: josh@joshgerdes.com
-  twitter_username: joshgerdes
-  facebook_username: joshgerdes
-  github_username:  joshgerdes
-  linkedin_username:  joshgerdes
+  name: 'whwhspace'
+  email: 313442958@qq.com
+  twitter_username:
+  facebook_username:
+  github_username:  whwhspace
+  linkedin_username:
 
 defaults:
   -
