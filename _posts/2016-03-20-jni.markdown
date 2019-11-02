@@ -1,0 +1,104 @@
+---
+title:  "JNI使用以及遇到的一些坑"
+date:   2016-01-08 15:04:23
+categories: [jni]
+tags: [jni]
+---
+
+
+## 使用jni原因
+
+1.某个函数或功能，已经使用c或c++实现，不想用java在实现一遍。
+
+2.需要使用一些非常底层的功能，操作寄存器等，一定要用c来实现。
+
+3.需要调用dll动态库。java无法直接调用dll动态库，需要用jni来调用。
+
+
+## 使用
+
+1. 写一个类，添加几个方法，声明为`static`和`native`,不需要实现。例：
+    ```
+    class JNIClass{
+        public static native void method1();
+        public static native void method2(int x,String s);
+    }
+    ```
+2. 编译上面这个类，生成一个`.class`文件。（坑1）
+
+	命令行：`javac JNIClass.java`
+	
+    IDE（intellij idea）:右击->编译。在一个`out`目录下
+
+3. 利用上面生成的`.class`文件和jdk的`javah`程序生成c的`.h`文件。
+
+	进入`.class`文件的目录，命令行输入：`javah JNIClass`，在该文件加下会生成一个`JNIClass.h`文件
+
+4. 新建一个`JNIClass.c`文件，实现`JNIClass.h`中的方法。(坑2)
+
+	然后把本地的c代码编译到一个动态库中。各个平台有不同的编译命令。
+
+5.	使用`visual studio`来创建动态库。
+
+	新建一个`win32`项目，项目名为`JNIClass`,选择动态库，完成。
+	
+	修改生成的`.h`文件，替换为用`javah`生成的头文件，注意不要全部替换，`visual studio`生成的项目会加一些其他的头文件，保留它们。
+	
+	在JNIClass.c中实现头文件中的方法。(坑2)（坑5）(坑8)
+	
+	生成->生成JNIClass。（坑3），在项目目录下会生成一个debug或者是一个x64文件夹，生成的dll文件就在该目录下。
+
+6. 把dll文件复制到java项目中,代码中用System.loadLibrary载入需要的库。（坑4）
+
+7. 然后就调用最早创建的java文件中的方法就可以了。
+
+## 部署
+
+java依然像平时一样打包，需要的dll文件都放在jar包相同的目录下（因为推荐使用System.loadLibrary加载dll,dll放在项目根目录下），添加一些资源的文件夹，比如images等。指定外部java库所在的文件夹lib（坑6，7）
+
+## 坑
+
+1. 编译的时候这个类不要放在某个包下面，也就是类的最上面没有`package ....`这一行，这样会导致`javah`无法生成`.h`文件
+2. 如果用c++实现，必须把实现本地方法的函数声明为`extern "c"`
+3. 注意解决方案平台，有x86和x64两个选项，一个是生成32位的.dll文件，一个是生成64位的.dll文件。根据你所使用的jvm是32位还是64位来选择使用那个文件。
+更多的时候，dll需要加载其他的dll文件来完成任务，那么就需要根据所需要的dll文件是32位还是64位来选择所生成的文件是32位还是64位。
+4. java代码中，通过下面的方法来载入需要的动态库：
+	```
+	static{
+    	System.loadLibrary("JNIClass");	//方法1，参数使用dll名称，不用加.dll
+        System.load("D:\\JNIClass.dll"); //方法2，参数使用dll绝对路径
+    }
+    ```
+    区别：
+    1. System.load使用绝对路径。System.loadLibrary使用文件名，不包括拓展名
+    2. System.loadLibrary使用的dll文件必须在java.library.path这一jvm变量所指向的路径中，可以通过System.getProperty("java.library.path");来查看这个变量，一般是
+    
+		1）和jre相关的一些目录
+		
+		2）程序当前目录
+		
+        3）Windows目录
+        
+        4）系统目录（system32）
+        
+        5）系统环境变量path指定目录
+        
+    3. 使用System.load，如果dllA依赖dllB,必须先加载dllB，再加载dllA。使用System.loadLibrary，就不需要先加载dllB，只要dllB在上面所指定的路径下就可以了。
+    4. 推荐使用`System.loadLibrary`，然后把所有需要的dll放在程序当前目录下就可以了。
+5. 一般情况下，在dll中需要调用其它的dll文件，需要用到下面的方法。首先需要知道加载的dll提供了那些函数。比如知道`SSC4HZ.dll`，它提供了一个函数`int SSC_OpenReader(char* port);`
+	通过LoadLibrary，GetProcAddress和FreeLibrary三个方法。详细用法参考下面：
+	```
+    HINSTANCE instance = LoadLibrary(L"SSC4HZ.dll"); //加载需要的dll
+    typedef int(*SSC_OpenReader)(char*);             //定义函数
+	SSC_OpenReader func1;							 //创建一个函数的实例
+    func1 = (SSC_OpenReader)GetProcAddress(instance, "SSC_OpenReader");
+	func1("COM1");   //调用函数
+    FreeLibrary(instance);  //用完后释放动态库
+    ```
+
+6. 在不同的电脑上，会出现找不到依赖的dll文件的问题。由于使用visual studio来生成dll文件，所以不是特别清楚所需要依赖的dll到底有哪些（通常是在系统目录下的），可以通过dll依赖查看工具`depends.exe`来查看需要哪些dll文件。（用低版本的visual studio会好些。我win10,vs2015部署到xp时缺的文件弄不清楚，但是xp,vs2010生成的dll部署到win10只需要加一个msvcr100d.dll）
+
+7. 还有需要注意jvm位数和dll文件的位数不同的问题。使用了32位的dll只能在32位的jvm上运行。
+
+8. 注意java类型与c类型，jstring,jint等与c的char*,int之间的转换。网上查查就应该有的。
+
