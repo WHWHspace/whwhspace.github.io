@@ -1,0 +1,50 @@
+---
+title:  "jenkins 持续集成及部署环境"
+date:   2016-05-11 15:04:23
+categories: [jenkins, tomcat, 持续集成]
+tags: [jenkins, tomcat, 持续集成]
+---
+
+搭建 Windows + jenkins + tomcat + maven + git 的持续集成及部署环境
+
+## 安装 java 8
+* 没什么好说的，官网下载安装 JDK 就好。（由于需要安装 maven 的缘故，不能只安装 JRE，但是安装 JDK 准没错）
+* 安装完成后打开命令行，输入`java -version` 查看版本信息。（有信息就表示安装成功）
+
+## 安装 maven 3.3.9
+* 官网下载 maven，解压
+* 配置 maven 环境变量，把 maven 安装路径下的 bin 目录添加到 PATH 环境变量
+* 添加 JAVA_HOME 环境 变量，指向 JDK 安装目录
+* 完场后打开命令行，输入 `mvn -v` 查看版本信息。（有信息就表示安装成功，不成功会有错误提示）
+
+## 安装 git
+* 官网下载安装即可
+
+## 安装 jenkins
+* 官网下载 jenkins，安装
+* 安装完成后会打开 `localhost：8080`, jenkins 首页
+* 根据提示完成初始设置，安装插件
+* windows 会把 jenkins 注册为一个 windows 服务，名称为 jenkins，每次开机都会自动开启
+* global tool configuration 配置 git（已经配置完成），jdk， maven（这两个需要手动配置）
+* 插件安装 deploy to container plugin，capitomcat plugin，maven integration plugin（最后一个可以没有，多了也没事）
+
+## 安装 tomcat 8
+* 官网下载 tomcat 的 windows installer，安装
+* 修改 tomcat 的默认端口，因为 8080 被 jenkins 占用了，所以改成 8000 就好。也可以安装完成之后到 conf/server.xml 中修改
+* 将 tomcat 注册为 windows 服务，服务里面找到 tomcat8 的服务，设置为自动开启。
+* 如果没有配置 tomcat 的服务，进入 tomcat 的 bin 目录，打开命令行，输入 `service.bat install`，就可以注册为 windows 服务。然后再设置自动启动。
+* 配置 Administrator login，设置 username 和 password 都是 `manager`， Roles 添加 ‘manager-script’，使 manager 账户具有 deploy 功能。没有配置的话可以在安装完成之后到 conf/tomcat_users.xml 中进行配置。（修改重启后貌似没成功，所以重装了...）
+
+## 创建测试项目
+* 新建基于 maven 的 java web 项目
+* 上传到 github
+
+## jenkins 添加新的项目
+1. 新建自由风格的项目（就是第一个），随便起个名字
+2. 源码管理选择 git，设置 git repo 的 url， 添加 github 用户名和密码（我用的是 github），分支就是 master
+3. 构建触发器，Build periodically 设置 `H 0 * * *`，每天 0 点定时 build 一次。 Poll SCM 设置 `H/5 * * * *`，每隔 5 分钟检查一次 github 是否有新的提交，有的话就 build
+4. 构建：添加 invoke top-level maven targets，选择 maven 版本（安装 jekins 的时候有配置过）， Goals 设置为 `clean install`， POM 设置 `pom.xml`
+5. 构建后步骤添加 Deploy war/ear to a container，war/ear files 设置 `target/*.war`（因为是 web 项目）。ContextPath 设置为项目名称（就是 tomcat 的 ContextPath），添加 container ：tomcat 7（虽然安装了 tomcat8，但是只能选 tomcat 7，但没关系），manager 的 username 和 password 都是 manager（安装 tomcat 的时候有配置），tomcat url 设置为 localhost:8000
+6. ok，立即构建，有错误的话就看 console output
+
+
